@@ -4,6 +4,7 @@ using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Runtime.ConstrainedExecution;
 using System.Text.RegularExpressions;
 
 namespace AUCDemo
@@ -19,7 +20,6 @@ namespace AUCDemo
             List<string> idss = new List<string>();
             var ids = doc.DocumentNode.SelectNodes("//div[@class=\"auction-item__btns\"]/a");
             string pattern1 = @"auctions\/([^\/]*)\/";
-
             if (ids != null)
             {
                 foreach (var id in ids)
@@ -50,8 +50,9 @@ namespace AUCDemo
             }
 
             var imgUrls = doc.DocumentNode.SelectNodes("//a[@class=\"auction-item__image\"]/img");
-          
-            List<string> lots = new List<string>();
+
+
+        List<string> lots = new List<string>();
             var lotsizes = doc.DocumentNode.SelectNodes("//div[@class=\"auction-item__btns\"]/a");
 
             string pattern2 = @"\d{1,}";
@@ -163,24 +164,28 @@ namespace AUCDemo
                 }
             }
             List<string> sT = new List<string>();
-            var startTimes = doc.DocumentNode.SelectNodes("//div[contains(@class, 'auction-date-location__item') and not(.//b)]/text()[normalize-space() and not(preceding-sibling::br)] | //div[contains(@class, 'auction-date-location__item')]//b");
+
+            var startTimes = doc.DocumentNode.SelectNodes("//div[@class=\"auction-date-location\"]");
 
             if (startTimes != null)
             {
-                string pattern = @"(\d+)(?=:)";
+                string pattern = @"(\d{1,2}:\d{2} (?:CET|\(CET\)))";
 
                 foreach (var linkNode in startTimes)
                 {
                     var linkText = linkNode.InnerText.Trim();
-
-
-                    Match match = Regex.Match(linkText, pattern);
-                    string dateRange = null; // Default to null
-
-                    if (match.Success)
+                    var matches = Regex.Matches(linkText, pattern);
+                    if (matches.Count > 0)
                     {
-                        dateRange = match.Value;
-                        sT.Add(dateRange);
+                        string smallestMatch = matches[0].Value; 
+                        foreach (Match match in matches)
+                        {
+                            if (match.Value.Length < smallestMatch.Length)
+                            {
+                                smallestMatch = match.Value;
+                            }
+                        }
+                        sT.Add(smallestMatch);
                     }
                     else
                     {
@@ -200,7 +205,7 @@ namespace AUCDemo
 
 
                     Match match = Regex.Match(linkText, pattern);
-                    string dateRange = null; // Default to null
+                    string dateRange = null; 
 
                     if (match.Success)
                     {
@@ -213,6 +218,7 @@ namespace AUCDemo
                     }
                 }
             }
+
             List<string> eM = new List<string>();
             var endMonths = doc.DocumentNode.SelectNodes("//div[contains(@class, 'auction-date-location__item')]/b/text() | //div[contains(@class, 'auction-date-location__item')]/br/following-sibling::text()[normalize-space()] | //div[contains(@class, 'auction-date-location__item')][not(b) and not(br)]/text()[normalize-space()]\r\n");
 
@@ -223,7 +229,7 @@ namespace AUCDemo
                 {
                     var linkText = linkNode.InnerText.Trim();
                     Match match = Regex.Match(linkText, pattern);
-                    string dateRange = null; // Default to null
+                    string dateRange = null; 
 
                     if (match.Success)
                     {
@@ -262,11 +268,11 @@ namespace AUCDemo
                 }
             }
             List<string> eT = new List<string>();
-            var endTimes = doc.DocumentNode.SelectNodes("//div[contains(@class, 'auction-date-location__item')]/b/text() | //div[contains(@class, 'auction-date-location__item')]/br/following-sibling::text()[normalize-space()] | //div[contains(@class, 'auction-date-location__item')][not(b) and not(br)]/text()[normalize-space()]\r\n");
+            var endTimes = doc.DocumentNode.SelectNodes("//div[@class=\"auction-date-location\"]");
 
             if (endTimes != null)
             {
-                string pattern = @"(\d+)(?=:)";
+                string pattern = @"(\d{1,2}:\d{2}\s*CET)(?=\s+[A-Za-z])";
                 foreach (var linkNode in endTimes)
                 {
                     var linkText = linkNode.InnerText.Trim();
@@ -277,8 +283,7 @@ namespace AUCDemo
 
                     if (match.Success)
                     {
-                        dateRange = match.Groups[1].Value;
-
+                        dateRange = match.Value;
                         eT.Add(dateRange);
                     }
                     else
@@ -394,6 +399,7 @@ namespace AUCDemo
                 using (SqlCommand command = new SqlCommand(query, connection))
                 {
                     command.CommandType = CommandType.StoredProcedure;
+                    Console.WriteLine("updated data");
                     command.Parameters.AddWithValue("@Id", auction.Id);
                     Console.WriteLine($"Extracted ID: '{auction.Id}'");
                     command.Parameters.AddWithValue("@Title", auction.Title);
@@ -434,7 +440,7 @@ namespace AUCDemo
         {
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                string query = "SELECT COUNT(1) FROM Auctions WHERE Id = @Id"; // Replace 'Auctions' with your actual table name
+                string query = "SELECT COUNT(1) FROM Auctions WHERE Id = @Id";
 
                 using (SqlCommand command = new SqlCommand(query, connection))
                 {
@@ -446,4 +452,3 @@ namespace AUCDemo
         }
     }
 }
-
